@@ -1,3 +1,31 @@
+CREATE OR REPLACE FUNCTION pay.get_trn_pymnt_dte_intvl(
+	p_person_id bigint,
+	p_pay_itm_id bigint)
+    RETURNS numeric
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
+<< outerblock >>
+DECLARE
+	bid numeric := 0;
+	v_rqst_date character varying(300) := '';
+	v_clsfctn_date character varying(300) := '';
+	v_clsfctn_Nm character varying(300) := '';
+	v_crnt_yr character varying(4) := '';
+	v_item_type_id bigint := - 1;
+	v_lnkd_loan_id bigint := - 1;
+BEGIN
+	v_crnt_yr := to_char(now(), 'YYYY');
+	v_rqst_date := pay.get_ltst_paiditem_dte(p_person_id,p_pay_itm_id);
+	bid := round((EXTRACT('epoch' FROM (to_char(now(), 'DD-Mon-YYYY'))::date - (to_char(to_timestamp(substring(v_rqst_date, 1, 10) || ' 00:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'DD-Mon-YYYY')::date - '0 seconds'::interval)) / 86400)::numeric, 2);
+	RETURN coalesce(bid, 0);
+EXCEPTION
+	WHEN OTHERS THEN
+		RETURN 0;
+END;
+$BODY$;
+
 CREATE OR REPLACE FUNCTION pay.get_payitm_expctd_amnt(
 	p_itm_id integer,
 	p_prsn_id bigint,

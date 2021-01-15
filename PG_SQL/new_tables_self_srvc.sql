@@ -21,6 +21,53 @@ ALTER TABLE aca.aca_crsrs_n_thr_sbjcts
 
 ALTER TABLE aca.aca_prsns_acdmc_sttngs
 	ADD COLUMN is_finalized character varying(1) NOT NULL DEFAULT '0';
+	
+DROP TABLE accb.accb_trans_to_reconcile;
+
+CREATE TABLE accb.accb_trans_to_reconcile (
+	reconcile_line_id bigserial NOT NULL,
+	bnk_trans_date character varying(21),
+	value_date character varying(21),
+	reconcile_desc character varying(300),
+	ref_doc_number character varying(200),
+	account_id integer,
+	imprtd_rec_pos_cntr integer,
+	import_hdr_runid bigint,
+	reconcile_strt_date character varying(21),
+	reconcile_end_date character varying(21),
+	debit_amount numeric,
+	credit_amount numeric,
+	net_amount numeric,
+	bals_afta_trans numeric,
+	opng_dbt_amount numeric,
+	opng_crdt_amount numeric,
+	opng_net_amount numeric,
+	clsng_dbt_amount numeric,
+	clsng_crdt_amount numeric,
+	clsng_net_amount numeric,
+	is_reconciled character varying(1),
+	lnkd_sys_trans_id bigint,
+	org_id integer,
+	created_by bigint,
+	creation_date character varying(21),
+	last_update_by bigint,
+	last_update_date character varying(21),
+	CONSTRAINT pk_reconcile_line_id PRIMARY KEY (reconcile_line_id)
+)
+WITH (OIDS = FALSE)
+TABLESPACE pg_default;
+
+CREATE INDEX idx_imprtd_rec_pos_cntr ON accb.accb_trans_to_reconcile
+ USING btree (imprtd_rec_pos_cntr ASC NULLS FIRST) TABLESPACE pg_default;
+CREATE INDEX idx_import_hdr_runid ON accb.accb_trans_to_reconcile
+ USING btree (import_hdr_runid ASC NULLS FIRST) TABLESPACE pg_default;
+CREATE INDEX idx_rcl_account_id ON accb.accb_trans_to_reconcile
+ USING btree (account_id ASC NULLS FIRST) TABLESPACE pg_default;
+
+CREATE INDEX idx_reconcile_strt_date ON accb.accb_trans_to_reconcile
+ USING btree (reconcile_strt_date ASC NULLS FIRST) TABLESPACE pg_default;
+CREATE INDEX idx_reconcile_end_date ON accb.accb_trans_to_reconcile
+ USING btree (reconcile_end_date ASC NULLS FIRST) TABLESPACE pg_default;
 
 --DROP TABLE accb.accb_smpl_vchr_hdr;
 CREATE TABLE accb.accb_smpl_vchr_hdr (

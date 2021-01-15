@@ -1,3 +1,417 @@
+CREATE OR REPLACE FUNCTION accb.populate_gl_statement2(
+	p_rpt_run_id bigint,
+	p_accnt_id integer,
+	p_shw_intrfc_trns character varying,
+	p_from_date character varying,
+	p_to_date character varying,
+	p_who_rn bigint,
+	p_run_date character varying,
+	p_orgidno integer,
+	p_msgid bigint)
+    RETURNS text
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
+<< outerblock >>
+  DECLARE
+  v_msgs          TEXT;
+  v_UpdtMsgs      TEXT;
+  vRD             RECORD;
+  vRecsDate       CHARACTER VARYING(21);
+  v_opngbalsDate  CHARACTER VARYING(21);
+  v_clsngbalsDate CHARACTER VARYING(21);
+  v_isprnt        CHARACTER VARYING(1);
+  v_ttlSgmnts     TEXT := '';
+  v_amnt1         NUMERIC := 0;
+  v_amnt2         NUMERIC := 0;
+  v_amnt3      NUMERIC := 0;
+  v_amnt4      NUMERIC := 0;
+  v_amnt5      NUMERIC := 0;
+  v_amnt6      NUMERIC := 0;
+  v_amnt7      NUMERIC := 0;
+  v_amnt8      NUMERIC := 0;
+  v_amnt9      NUMERIC := 0;
+  v_TrnsLineID NUMERIC := -1;
+  vCntr        INTEGER := 0;
+BEGIN
+  SELECT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+      INTO vRecsDate;
+  DELETE
+  FROM rpt.rpt_gnrl_data_storage
+  WHERE age(now(), to_timestamp(rpt_run_date, 'YYYY-MM-DD HH24:MI:SS')) > INTERVAL '1 days';
+  v_msgs := 'Before Query vRecsDate:' || vRecsDate;
+
+  v_opngbalsDate := to_char(to_timestamp(p_from_date || ' 23:59:59', 'YYYY-MM-DD HH24:MI:SS') - INTERVAL '1 days',
+                            'YYYY-MM-DD');
+  v_clsngbalsDate := to_char(to_timestamp(p_to_date || ' 23:59:59', 'YYYY-MM-DD HH24:MI:SS'), 'YYYY-MM-DD');
+
+  v_isprnt := accb.is_accnt_prnt(p_accnt_id);
+  IF v_isprnt = '1'
+  THEN
+    v_amnt4 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_opngbalsDate, 'dbt_amount');
+    v_amnt5 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_opngbalsDate, 'crdt_amount');
+    v_amnt6 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_opngbalsDate, 'net_amount');
+
+    v_amnt7 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_clsngbalsDate, 'dbt_amount');
+    v_amnt8 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_clsngbalsDate, 'crdt_amount');
+    v_amnt9 := accb.get_ltst_prnt_accnt_bals(p_accnt_id, v_clsngbalsDate, 'net_amount');
+  ELSE
+    v_amnt4 := accb.get_ltst_accnt_bals(p_accnt_id, v_opngbalsDate, 'dbt_amount');
+    v_amnt5 := accb.get_ltst_accnt_bals(p_accnt_id, v_opngbalsDate, 'crdt_amount');
+    v_amnt6 := accb.get_ltst_accnt_bals(p_accnt_id, v_opngbalsDate, 'net_amount');
+
+    v_amnt7 := accb.get_ltst_accnt_bals(p_accnt_id, v_clsngbalsDate, 'dbt_amount');
+    v_amnt8 := accb.get_ltst_accnt_bals(p_accnt_id, v_clsngbalsDate, 'crdt_amount');
+    v_amnt9 := accb.get_ltst_accnt_bals(p_accnt_id, v_clsngbalsDate, 'net_amount');
+  END IF;
+
+  IF v_amnt4 > v_amnt5
+  THEN
+    v_amnt4 := v_amnt4 - v_amnt5;
+    v_amnt5 := 0;
+  ELSE
+    v_amnt5 := v_amnt5 - v_amnt4;
+    v_amnt4 := 0;
+  END IF;
+
+  IF v_amnt7 > v_amnt8
+  THEN
+    v_amnt7 := v_amnt7 - v_amnt8;
+    v_amnt8 := 0;
+  ELSE
+    v_amnt8 := v_amnt8 - v_amnt7;
+    v_amnt7 := 0;
+  END IF;
+  INSERT INTO rpt.rpt_accb_data_storage(accb_rpt_runid,
+                                        rpt_run_date,
+                                        gnrl_data1,
+                                        gnrl_data2,
+                                        gnrl_data3,
+                                        gnrl_data4,
+                                        gnrl_data5,
+                                        gnrl_data6,
+                                        gnrl_data7,
+                                        gnrl_data8,
+                                        gnrl_data9,
+                                        gnrl_data10,
+                                        gnrl_data11,
+                                        gnrl_data12,
+                                        gnrl_data13,
+                                        gnrl_data14,
+                                        gnrl_data15,
+                                        gnrl_data16,
+                                        gnrl_data17,
+                                        gnrl_data18,
+                                        gnrl_data19,
+                                        gnrl_data20,
+                                        gnrl_data21,
+                                        gnrl_data22,
+                                        gnrl_data23,
+                                        gnrl_data24,
+                                        gnrl_data25,
+                                        gnrl_data26,
+                                        gnrl_data27,
+                                        gnrl_data28,
+                                        gnrl_data29,
+                                        gnrl_data30)
+  VALUES (p_rpt_run_id,
+          vRecsDate,
+          '1',
+          accb.get_accnt_num(p_accnt_id),
+          accb.get_accnt_name(p_accnt_id),
+          'OPENING BALANCE ',
+          '',
+          '' || COALESCE(v_amnt4, 0),
+          '' || COALESCE(v_amnt5, 0),
+          '' || COALESCE(v_amnt6, 0),
+          v_opngbalsDate,
+          '' || p_accnt_id,
+          '-1',
+          to_char(to_timestamp(v_opngbalsDate, 'YYYY-MM-DD HH24:MI:SS'),
+                  'DD-Mon-YYYY HH24:MI:SS'),
+          '' || COALESCE(v_amnt4, 0),
+          '' || COALESCE(v_amnt5, 0),
+          '' || COALESCE(v_amnt6, 0),
+          '' || COALESCE(v_amnt7, 0),
+          '' || COALESCE(v_amnt8, 0),
+          '' || COALESCE(v_amnt9, 0),
+          '0',
+          'VALID',
+          '-1',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '');
+
+  IF p_shw_intrfc_trns ILIKE '%Yes%'
+  THEN
+    FOR vRD IN
+    SELECT row_number()
+        OVER (
+          ORDER BY to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') ASC, a.transctn_id) rownumbr,
+           a.transctn_id,
+           b.accnt_num,
+           b.accnt_name,
+           COALESCE(y.transaction_desc,
+                    COALESCE(y1.transaction_desc, COALESCE(y2.transaction_desc, COALESCE(y3.transaction_desc,
+                                                                                         a.transaction_desc)))) transaction_desc,
+           COALESCE(y.dbt_amount,
+                    COALESCE(y1.dbt_amount, COALESCE(y2.dbt_amount, COALESCE(y3.dbt_amount, a.dbt_amount)))) dbt_amount,
+           COALESCE(y.crdt_amount,
+                    COALESCE(y1.crdt_amount,
+                             COALESCE(y2.crdt_amount, COALESCE(y3.crdt_amount, a.crdt_amount)))) crdt_amount,
+           to_char(to_timestamp(COALESCE(y.trnsctn_date, COALESCE(y1.trnsctn_date, COALESCE(y2.trnsctn_date,
+                                                                                            COALESCE(y3.trnsctn_date,
+                                                                                                     a.trnsctn_date)))),
+                                'YYYY-MM-DD HH24:MI:SS'),
+                   'DD-Mon-YYYY HH24:MI:SS') trnsctn_date,
+           a.func_cur_id,
+           a.batch_id,
+           a.accnt_id,
+           COALESCE(y.net_amount,
+                    COALESCE(y1.net_amount, COALESCE(y2.net_amount, COALESCE(y3.net_amount, a.net_amount)))) net_amount,
+           c.batch_name,
+           a.trns_status,
+           c.batch_source,
+           a.entered_amnt,
+           gst.get_pssbl_val(a.entered_amt_crncy_id),
+           a.entered_amt_crncy_id,
+           a.accnt_crncy_amnt,
+           gst.get_pssbl_val(a.accnt_crncy_id),
+           a.accnt_crncy_id,
+           a.func_cur_exchng_rate,
+           a.accnt_cur_exchng_rate,
+           c.batch_name btch_nm,
+           a.ref_doc_number,
+           a.is_reconciled,
+           a.dbt_or_crdt,
+           c.batch_vldty_status,
+           c.src_batch_id,
+           a.trnsctn_date trnsctn_date_rw
+    FROM (accb.accb_trnsctn_details a LEFT OUTER JOIN accb.accb_trnsctn_batches c ON a.batch_id = c.batch_id)
+           LEFT OUTER JOIN accb.accb_chart_of_accnts b ON a.accnt_id = b.accnt_id
+           LEFT OUTER JOIN mcf.mcf_gl_interface y
+             ON (a.accnt_id = y.accnt_id AND y.gl_batch_id = a.batch_id AND (c.batch_source ILIKE '%Banking%') AND
+                 a.source_trns_ids LIKE '%,' || y.interface_id || ',%')
+           LEFT OUTER JOIN vms.vms_gl_interface y1 ON (a.accnt_id = y1.accnt_id AND y1.gl_batch_id = a.batch_id AND
+                                                       c.batch_source ILIKE '%Vault Management%' AND
+                                                       a.source_trns_ids LIKE '%,' || y1.interface_id || ',%')
+           LEFT OUTER JOIN pay.pay_gl_interface y2 ON (a.accnt_id = y2.accnt_id AND y2.gl_batch_id = a.batch_id AND
+                                                       c.batch_source ILIKE '%Internal Payments%' AND
+                                                       a.source_trns_ids LIKE '%,' || y2.interface_id || ',%')
+           LEFT OUTER JOIN scm.scm_gl_interface y3
+             ON (a.accnt_id = y3.accnt_id AND y3.gl_batch_id = a.batch_id AND c.batch_source ILIKE '%Inventory%' AND
+                 a.source_trns_ids LIKE '%,' || y3.interface_id || ',%')
+    WHERE ((b.accnt_id = p_accnt_id OR b.prnt_accnt_id = p_accnt_id OR b.control_account_id = p_accnt_id) AND
+           (trns_status = '1') AND
+           (to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') BETWEEN to_timestamp(p_from_date || ' 00:00:00',
+                                                                                       'YYYY-MM-DD HH24:MI:SS')
+               AND to_timestamp(p_to_date || ' 23:59:59', 'YYYY-MM-DD HH24:MI:SS')))
+    ORDER BY to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') ASC, a.transctn_id
+    LOOP
+      v_amnt1 := vRD.dbt_amount;
+      v_amnt2 := vRD.crdt_amount;
+      v_amnt3 := vRD.net_amount;
+      vCntr := vCntr + 1;
+      INSERT INTO rpt.rpt_accb_data_storage(accb_rpt_runid,
+                                            rpt_run_date,
+                                            gnrl_data1,
+                                            gnrl_data2,
+                                            gnrl_data3,
+                                            gnrl_data4,
+                                            gnrl_data5,
+                                            gnrl_data6,
+                                            gnrl_data7,
+                                            gnrl_data8,
+                                            gnrl_data9,
+                                            gnrl_data10,
+                                            gnrl_data11,
+                                            gnrl_data12,
+                                            gnrl_data13,
+                                            gnrl_data14,
+                                            gnrl_data15,
+                                            gnrl_data16,
+                                            gnrl_data17,
+                                            gnrl_data18,
+                                            gnrl_data19,
+                                            gnrl_data20,
+                                            gnrl_data21,
+                                            gnrl_data22,
+                                            gnrl_data23,
+                                            gnrl_data24,
+                                            gnrl_data25,
+                                            gnrl_data26,
+                                            gnrl_data27,
+                                            gnrl_data28,
+                                            gnrl_data29,
+                                            gnrl_data30)
+      VALUES (p_rpt_run_id,
+              vRecsDate,
+              '' || (vRD.rownumbr + 1),
+              vRD.accnt_num,
+              vRD.accnt_name,
+              vRD.transaction_desc,
+              vRD.ref_doc_number,
+              '' || COALESCE(v_amnt1, 0),
+              '' || COALESCE(v_amnt2, 0),
+              '' || COALESCE(v_amnt3, 0),
+              vRD.trnsctn_date_rw,
+              vRD.accnt_id,
+              vRD.transctn_id,
+              '' || vRD.trnsctn_date,
+              '' || COALESCE(v_amnt4, 0),
+              '' || COALESCE(v_amnt5, 0),
+              '' || COALESCE(v_amnt6, 0),
+              '' || COALESCE(v_amnt7, 0),
+              '' || COALESCE(v_amnt8, 0),
+              '' || COALESCE(v_amnt9, 0),
+              vRD.is_reconciled,
+              vRD.batch_vldty_status,
+           	  vRD.src_batch_id,
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '');
+    END LOOP;
+  ELSE
+    FOR vRD IN
+    SELECT row_number()
+        OVER (
+          ORDER BY to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') ASC, a.transctn_id) rownumbr,
+           a.transctn_id,
+           b.accnt_num,
+           b.accnt_name,
+           a.transaction_desc,
+           a.dbt_amount,
+           a.crdt_amount,
+           to_char(to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS'), 'DD-Mon-YYYY HH24:MI:SS') trnsctn_date,
+           a.func_cur_id,
+           a.batch_id,
+           a.accnt_id,
+           a.net_amount,
+           c.batch_name,
+           a.trns_status,
+           c.batch_source,
+           a.entered_amnt,
+           gst.get_pssbl_val(a.entered_amt_crncy_id),
+           a.entered_amt_crncy_id,
+           a.accnt_crncy_amnt,
+           gst.get_pssbl_val(a.accnt_crncy_id),
+           a.accnt_crncy_id,
+           a.func_cur_exchng_rate,
+           a.accnt_cur_exchng_rate,
+           c.batch_name btch_nm,
+           a.ref_doc_number,
+           a.is_reconciled,
+           a.dbt_or_crdt,
+           c.batch_vldty_status,
+           c.src_batch_id,
+           a.trnsctn_date trnsctn_date_rw
+    FROM (accb.accb_trnsctn_details a LEFT OUTER JOIN accb.accb_trnsctn_batches c ON a.batch_id = c.batch_id)
+           LEFT OUTER JOIN accb.accb_chart_of_accnts b ON a.accnt_id = b.accnt_id
+    WHERE ((b.accnt_id = p_accnt_id OR b.prnt_accnt_id = p_accnt_id OR b.control_account_id = p_accnt_id) AND
+           (trns_status = '1') AND
+           (to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') BETWEEN to_timestamp(p_from_date || ' 00:00:00',
+                                                                                       'YYYY-MM-DD HH24:MI:SS')
+               AND to_timestamp(p_to_date || ' 23:59:59', 'YYYY-MM-DD HH24:MI:SS')))
+    ORDER BY to_timestamp(a.trnsctn_date, 'YYYY-MM-DD HH24:MI:SS') ASC, a.transctn_id
+    LOOP
+      v_amnt1 := vRD.dbt_amount;
+      v_amnt2 := vRD.crdt_amount;
+      v_amnt3 := vRD.net_amount;
+      vCntr := vCntr + 1;
+      INSERT INTO rpt.rpt_accb_data_storage(accb_rpt_runid,
+                                            rpt_run_date,
+                                            gnrl_data1,
+                                            gnrl_data2,
+                                            gnrl_data3,
+                                            gnrl_data4,
+                                            gnrl_data5,
+                                            gnrl_data6,
+                                            gnrl_data7,
+                                            gnrl_data8,
+                                            gnrl_data9,
+                                            gnrl_data10,
+                                            gnrl_data11,
+                                            gnrl_data12,
+                                            gnrl_data13,
+                                            gnrl_data14,
+                                            gnrl_data15,
+                                            gnrl_data16,
+                                            gnrl_data17,
+                                            gnrl_data18,
+                                            gnrl_data19,
+                                            gnrl_data20,
+                                            gnrl_data21,
+                                            gnrl_data22,
+                                            gnrl_data23,
+                                            gnrl_data24,
+                                            gnrl_data25,
+                                            gnrl_data26,
+                                            gnrl_data27,
+                                            gnrl_data28,
+                                            gnrl_data29,
+                                            gnrl_data30)
+      VALUES (p_rpt_run_id,
+              vRecsDate,
+              '' || (vRD.rownumbr + 1),
+              vRD.accnt_num,
+              vRD.accnt_name,
+              vRD.transaction_desc,
+              vRD.ref_doc_number,
+              '' || COALESCE(v_amnt1, 0),
+              '' || COALESCE(v_amnt2, 0),
+              '' || COALESCE(v_amnt3, 0),
+              vRD.trnsctn_date_rw,
+              vRD.accnt_id,
+              vRD.transctn_id,
+              '' || vRD.trnsctn_date,
+              '' || COALESCE(v_amnt4, 0),
+              '' || COALESCE(v_amnt5, 0),
+              '' || COALESCE(v_amnt6, 0),
+              '' || COALESCE(v_amnt7, 0),
+              '' || COALESCE(v_amnt8, 0),
+              '' || COALESCE(v_amnt9, 0),
+              vRD.is_reconciled,
+              vRD.batch_vldty_status,
+           	  vRD.src_batch_id,
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '');
+    END LOOP;
+  END IF;
+  v_msgs := v_msgs || chr(10) || 'Successfully Populated GL Statement into General Data Table!';
+  v_UpdtMsgs := rpt.updaterptlogmsg(p_msgid, v_msgs, p_run_date, p_who_rn);
+  RETURN v_msgs;
+  EXCEPTION
+  WHEN OTHERS
+    THEN
+      v_msgs := v_msgs || chr(10) || '' || SQLSTATE || chr(10) || SQLERRM;
+      v_UpdtMsgs := rpt.updaterptlogmsg(p_msgid, v_msgs, p_run_date, p_who_rn);
+      RAISE NOTICE 'ERRORS:%', v_msgs;
+      RAISE EXCEPTION 'ERRORS:%', v_msgs
+      USING HINT = 'Please check your System Setup or Contact Vendor' || v_msgs;
+      RETURN v_msgs;
+END;
+$BODY$;
+
 CREATE OR REPLACE FUNCTION accb.istransprmttd(
 	p_org_id integer,
 	p_accntid integer,
