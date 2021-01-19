@@ -129,6 +129,41 @@ CREATE OR REPLACE FUNCTION pay.get_ltst_paiditem_dte (p_personid bigint, p_pay_i
 	LIMIT 1 OFFSET 0
 $BODY$;
 
+
+CREATE OR REPLACE FUNCTION pay.get_ttl_paiditem_val_b4 (p_personid bigint, p_pay_itm_id bigint, p_trns_date character varying)
+	RETURNS numeric
+	LANGUAGE 'sql'
+	COST 100 VOLATILE
+	AS $BODY$
+	SELECT
+		SUM(COALESCE(a.amount_paid, 0))
+	FROM
+		pay.pay_itm_trnsctns a
+	WHERE
+		a.person_id = p_personid
+		AND a.item_id = p_pay_itm_id
+		AND substring(a.paymnt_date, 1, 10) <= substring(p_trns_date, 1, 10)
+		AND (a.pymnt_vldty_status = 'VALID'
+			AND a.src_py_trns_id < 0)
+$BODY$;
+
+CREATE OR REPLACE FUNCTION pay.get_ttl_paiditem_val_afta (p_personid bigint, p_pay_itm_id bigint, p_trns_date character varying)
+	RETURNS numeric
+	LANGUAGE 'sql'
+	COST 100 VOLATILE
+	AS $BODY$
+	SELECT
+		SUM(COALESCE(a.amount_paid, 0))
+	FROM
+		pay.pay_itm_trnsctns a
+	WHERE
+		a.person_id = p_personid
+		AND a.item_id = p_pay_itm_id
+		AND substring(a.paymnt_date, 1, 10) >= substring(p_trns_date, 1, 10)
+		AND (a.pymnt_vldty_status = 'VALID'
+			AND a.src_py_trns_id < 0)
+$BODY$;
+
 CREATE OR REPLACE FUNCTION pay.get_mass_py_name (p_mass_py_id bigint)
 	RETURNS character varying
 	LANGUAGE 'sql'
@@ -3386,9 +3421,9 @@ END;
 
 $BODY$;
 
-DROP FUNCTION pay.runMassPay (p_org_id integer, p_prsn_id bigint, p_loc_id_no character varying, p_itm_id bigint, p_itm_name character varying, p_itm_uom character varying, p_mspy_id bigint, p_trns_date character varying, p_trns_typ character varying, p_itm_maj_typ character varying, p_itm_min_typ character varying, p_msg_id bigint, p_log_tbl character varying, p_dateStr character varying, p_glDate character varying, p_shdSkip boolean, p_itmAssgnDte character varying, p_trnsDesc character varying, p_who_rn bigint, OUT p_payItmAmnt numeric, OUT p_retmsg character varying);
+--DROP FUNCTION pay.runMassPay (p_org_id integer, p_prsn_id bigint, p_loc_id_no character varying, p_itm_id bigint, p_itm_name character varying, p_itm_uom character varying, p_mspy_id bigint, p_trns_date character varying, p_trns_typ character varying, p_itm_maj_typ character varying, p_itm_min_typ character varying, p_msg_id bigint, p_log_tbl character varying, p_dateStr character varying, p_glDate character varying, p_shdSkip boolean, p_itmAssgnDte character varying, p_trnsDesc character varying, p_who_rn bigint, OUT p_payItmAmnt numeric, OUT p_retmsg character varying);
 
-DROP FUNCTION pay.runMassPay (p_org_id integer, p_prsn_id bigint, p_loc_id_no character varying, p_itm_id bigint, p_itm_name character varying, p_itm_uom character varying, p_mspy_id bigint, p_trns_date character varying, p_trns_typ character varying, p_itm_maj_typ character varying, p_itm_min_typ character varying, p_msg_id bigint, p_log_tbl character varying, p_dateStr character varying, p_glDate character varying, p_shdSkip boolean, p_itmAssgnDte character varying, p_trnsDesc character varying, p_who_rn bigint, INOUT p_payItmAmnt numeric, OUT p_retmsg character varying);
+--DROP FUNCTION pay.runMassPay (p_org_id integer, p_prsn_id bigint, p_loc_id_no character varying, p_itm_id bigint, p_itm_name character varying, p_itm_uom character varying, p_mspy_id bigint, p_trns_date character varying, p_trns_typ character varying, p_itm_maj_typ character varying, p_itm_min_typ character varying, p_msg_id bigint, p_log_tbl character varying, p_dateStr character varying, p_glDate character varying, p_shdSkip boolean, p_itmAssgnDte character varying, p_trnsDesc character varying, p_who_rn bigint, INOUT p_payItmAmnt numeric, OUT p_retmsg character varying);
 
 CREATE OR REPLACE FUNCTION pay.runMassPay (p_org_id integer, p_prsn_id bigint, p_loc_id_no character varying, p_itm_id bigint, p_itm_name character varying, p_itm_uom character varying, p_mspy_id bigint, p_trns_date character varying, p_trns_typ character varying, p_itm_maj_typ character varying, p_itm_min_typ character varying, p_msg_id bigint, p_log_tbl character varying, p_dateStr character varying, p_glDate character varying, p_shdSkip boolean, p_itmAssgnDte character varying, p_trnsDesc character varying, p_who_rn bigint, p_ttlAmntLoaded numeric, p_AmntGvn numeric, INOUT p_payItmAmnt numeric, OUT p_retmsg character varying)
 LANGUAGE 'plpgsql'

@@ -23,7 +23,7 @@ CREATE OR REPLACE FUNCTION aca.isprsnelgbltorgstr(
 AS $BODY$
 << outerblock >>
 DECLARE
-	v_res character varying(4000) := '';
+	v_res character varying(4000) := 'YES:You can Register!';
 	v_ttl_pymnts_itm_st_id bigint := - 1;
 	v_ttl_bills_itm_st_id bigint := - 1;
 	v_ttl_bals_itm_st_id bigint := - 1;
@@ -43,7 +43,7 @@ BEGIN
     --org.get_payitm_id (p_ttl_bals_itm_st_nm);
 	IF coalesce(v_ttl_bills_itm_st_id, - 1) > 0 THEN
 		SELECT
-			SUM(coalesce(pay.get_ltst_paiditem_val_b4 (p_prsnid, item_id, to_char(now(), 'YYYY-MM-DD')), 0)),
+			SUM(coalesce(pay.get_ttl_paiditem_val_b4 (p_prsnid, item_id, to_char(now(), 'YYYY-MM-DD')), 0)),
 			MAX(pay.get_ltst_paiditem_dte (p_prsnid, item_id)) INTO v_ttl_bills_itm_st_sum,
 			v_ltst_bill_dte
 		FROM
@@ -54,7 +54,7 @@ BEGIN
 	END IF;
 	IF coalesce(v_ttl_pymnts_itm_st_id, - 1) > 0 THEN
 		SELECT
-			SUM(coalesce(pay.get_ltst_paiditem_val_afta (p_prsnid, item_id, v_ltst_bill_dte), 0)) INTO v_ttl_pymnts_itm_st_sum
+			SUM(coalesce(pay.get_ttl_paiditem_val_afta (p_prsnid, item_id, v_ltst_bill_dte), 0)) INTO v_ttl_pymnts_itm_st_sum
 		FROM
 			pay.get_AllItmStDet (v_ttl_pymnts_itm_st_id::integer);
 	END IF;
