@@ -1,3 +1,159 @@
+CREATE OR REPLACE FUNCTION gst.getDB_Date_TmIntvlAddSub (p_dmytme character varying, p_intrvl character varying, p_addOrSbtrct character varying)
+    RETURNS character varying
+    LANGUAGE 'plpgsql'
+    COST 100 VOLATILE PARALLEL UNSAFE
+    AS $BODY$
+    << outerblock >>
+DECLARE
+    v_trns_date character varying(21) := '';
+    v_sqlStr text := '';
+BEGIN
+    v_sqlStr := 'select to_char(to_timestamp(''' || p_dmytme || ''', ''DD-Mon-YYYY HH24:MI:SS'') + interval ''' || p_intrvl || ''', ''DD-Mon-YYYY HH24:MI:SS'')';
+    IF (p_addOrSbtrct = 'Subtract') THEN
+        v_sqlStr := 'select to_char(to_timestamp(''' || p_dmytme || ''', ''DD-Mon-YYYY HH24:MI:SS'') - interval ''' || p_intrvl || ''', ''DD-Mon-YYYY HH24:MI:SS'')';
+    END IF;
+    EXECUTE v_sqlStr INTO v_trns_date;
+    RETURN coalesce(v_trns_date, '');
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'SQLERRM RUN %', SQLERRM;
+    RETURN '';
+END;
+$BODY$;
+
+DROP FUNCTION pay.autoCorrectBlsItemBalance (p_prsn_id bigint, p_bals_itm_id bigint, p_who_rn bigint);
+
+CREATE OR REPLACE FUNCTION pay.autoCorrectBlsItemBalance (p_prsn_id bigint, p_bals_itm_id bigint, p_strt_dte character varying, p_end_dte character varying, p_who_rn bigint)
+    RETURNS text
+    LANGUAGE 'plpgsql'
+    COST 100 VOLATILE PARALLEL UNSAFE
+    AS $BODY$
+    << outerblock >>
+DECLARE
+    v_Reslg bigint := - 1;
+    rd1 RECORD;
+    rd9 RECORD;
+    v_cntr integer := 0;
+    v_opngBals numeric := 0;
+    v_clsngBals numeric := 0;
+    v_nwAmnt numeric := 0;
+    v_ttlAmntLoaded1 numeric := 0;
+    v_trns_date character varying(21) := '';
+    v_strt_date character varying(21) := '';
+    v_end_date character varying(21) := '';
+    v_pay_trns_id bigint := - 1;
+    v_itm_id integer := - 1;
+    v_pay_amount numeric := 0;
+    v_person_id bigint := - 1;
+    v_org_id integer := - 1;
+    v_result1 text := '';
+    b_hsBlsBnUpdtd boolean := FALSE;
+BEGIN
+    v_strt_date := to_char(to_timestamp(p_strt_dte, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
+    v_end_date := to_char(to_timestamp(p_end_dte, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
+    FOR rd1 IN (
+        SELECT
+            a.pay_trns_id,
+            a.person_id,
+            a.item_id,
+            a.amount_paid,
+            to_char(to_timestamp(a.paymnt_date, 'YYYY-MM-DD HH24:MI:SS'), 'DD-Mon-YYYY HH24:MI:SS') paymnt_date,
+            a.paymnt_source,
+            a.pay_trns_type,
+            a.pymnt_desc,
+            - 1,
+            a.crncy_id,
+            c.local_id_no,
+            trim(c.title || ' ' || c.sur_name || ', ' || c.first_name || ' ' || c.other_names) fullname,
+            b.item_code_name,
+            a.pymnt_vldty_status,
+            gst.get_pssbl_val (a.crncy_id),
+            b.item_min_type,
+            d.adds_subtracts,
+            d.scale_factor,
+            b.org_id
+        FROM
+            pay.pay_itm_trnsctns a
+        LEFT OUTER JOIN org.org_pay_items b ON (a.item_id = b.item_id)
+    LEFT OUTER JOIN org.org_pay_itm_feeds d ON (a.item_id = d.fed_by_itm_id)
+    LEFT OUTER JOIN prs.prsn_names_nos c ON (a.person_id = c.person_id)
+WHERE ((to_timestamp(a.paymnt_date, 'YYYY-MM-DD HH24:MI:SS') BETWEEN to_timestamp(v_strt_date, 'YYYY-MM-DD HH24:MI:SS')
+        AND to_timestamp(v_end_date, 'YYYY-MM-DD HH24:MI:SS'))
+        AND d.balance_item_id = p_bals_itm_id
+        AND a.person_id = p_prsn_id)
+ORDER BY
+    a.person_id,
+    a.paymnt_date ASC,
+    b.pay_run_priority ASC,
+    a.pymnt_vldty_status DESC)
+LOOP
+    v_person_id := rd1.person_id;
+    v_org_id := rd1.org_id;
+    v_trns_date := rd1.paymnt_date;
+    v_pay_trns_id := rd1.pay_trns_id;
+    v_itm_id := rd1.item_id;
+    --to_char(to_timestamp(rd1.paymnt_date, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
+    v_cntr := v_cntr + 1;
+    IF v_cntr = 1 THEN
+        v_strt_date := SUBSTRING(gst.getDB_Date_TmIntvlAddSub (p_strt_dte, '1 day', 'Subtract'), 1, 11);
+        v_opngBals := pay.getblsitmltstdailybals (p_bals_itm_id, v_person_id, v_strt_date || ' 23:59:59', v_org_id);
+        v_ttlAmntLoaded1 := v_opngBals;
+    END IF;
+    IF rd1.adds_subtracts = 'Adds' THEN
+        v_ttlAmntLoaded1 := v_ttlAmntLoaded1 + (1 * rd1.scale_factor * rd1.amount_paid);
+    ELSE
+        v_ttlAmntLoaded1 := v_ttlAmntLoaded1 + (- 1 * rd1.scale_factor * rd1.amount_paid);
+    END IF;
+    b_hsBlsBnUpdtd := pay.hsPrsItmBlsBnUptd (v_pay_trns_id, v_trns_date, p_bals_itm_id, v_person_id);
+    IF (b_hsBlsBnUpdtd = FALSE) THEN
+        v_trns_date := gst.getDB_Date_TmIntvlAddSub (v_trns_date, '1 second', 'Add');
+        UPDATE
+            pay.pay_itm_trnsctns
+        SET
+            paymnt_date = to_char(to_timestamp(v_trns_date, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS')
+        WHERE
+            pay_trns_id = v_pay_trns_id;
+        v_nwAmnt := pay.willItmBlsBeNgtv (v_person_id, v_itm_id, rd1.amount_paid, v_trns_date, v_org_id, p_who_rn);
+        IF (v_nwAmnt < 0) THEN
+            v_result1 := 'Transaction will cause a Balance Item ' || 'to Have Negative Balance and hence cannot be allowed! Person:' || v_person_id || ' Item: ' || p_bals_itm_id || 'Amount After:' || v_nwAmnt || '/Trans Amnt:' || v_pay_amount || '/' || v_trns_date;
+        ELSE
+            --Update Balance Items
+            --RAISE NOTICE 'updtBlsItms RUN 2 %', v_pay_amount;
+            v_result1 := pay.updtBlsItms (v_person_id, v_itm_id, rd1.amount_paid, v_trns_date, 'Mass Pay Run', - 1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
+        END IF;
+    END IF;
+END LOOP;
+    v_clsngBals := pay.getblsitmltstdailybals (p_bals_itm_id, v_person_id, substring(v_trns_date, 1, 11) || ' 23:59:59', v_org_id);
+
+    /*IF v_ttlAmntLoaded1 != v_clsngBals THEN
+     v_pay_amount := v_clsngBals - v_ttlAmntLoaded1;
+     v_trns_date := gst.getDB_Date_TmIntvlAddSub (p_strt_dte, '1 second', 'Add');
+
+     UPDATE pay.pay_itm_trnsctns SET 
+     paymnt_date = to_char(to_timestamp(v_trns_date, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS')
+     WHERE pay_trns_id = v_pay_trns_id;
+
+     v_nwAmnt := pay.willItmBlsBeNgtv (v_person_id, v_itm_id, v_pay_amount, v_trns_date, v_org_id, p_who_rn);
+     IF (v_nwAmnt < 0) THEN
+     v_result1 := 'Transaction will cause a Balance Item ' || 'to Have Negative Balance and hence cannot be allowed! Person:' || v_person_id || ' Item: ' || p_bals_itm_id || 'Amount After:' || v_nwAmnt || '/Trans Amnt:' || v_pay_amount || '/' || v_trns_date;
+     RETURN v_result1;
+     END IF;
+     --Update Balance Items
+     --RAISE NOTICE 'updtBlsItms RUN 2 %', v_pay_amount;
+     v_result1 := pay.updtBlsItms (v_person_id, v_itm_id, v_pay_amount, v_trns_date, 'Mass Pay Run', -1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
+     v_result1 := 'Success:' || v_result1;
+     END IF;*/
+    RETURN v_result1;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'SQLERRM RUN %', SQLERRM;
+    v_result1 := 'Stop:Processing Payment Failed for Person:' || v_person_id || ' Item:' || p_bals_itm_id || ' ERRMSG:' || SQLERRM;
+    RETURN v_result1;
+END;
+
+$BODY$;
+
+
 CREATE OR REPLACE FUNCTION pay.get_trn_pymnt_dte_intvl(
 	p_person_id bigint,
 	p_pay_itm_id bigint)
@@ -1646,39 +1802,6 @@ EXCEPTION
 	WHEN OTHERS THEN
 		--ROLLBACK;
 		RETURN 0;
-END;
-
-$BODY$;
-
-CREATE OR REPLACE FUNCTION pay.hsPrsItmBlsBnUptd (p_pytrnsid bigint, p_trnsdate character varying, p_bals_itm_id bigint, p_prsn_id bigint)
-	RETURNS boolean
-	LANGUAGE 'plpgsql'
-	COST 100 VOLATILE
-	AS $BODY$
-	<< outerblock >>
-DECLARE
-	v_res boolean := FALSE;
-	v_trnsdate character varying(21) := '';
-	v_sql text := '';
-	v_cntr integer := 0;
-BEGIN
-	v_trnsdate := to_char(to_timestamp(p_trnsdate, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
-	IF (char_length(p_trnsdate) > 10) THEN
-		v_trnsdate := substr(p_trnsdate, 1, 10);
-	END IF;
-	SELECT
-		count(a.bals_id) INTO v_cntr
-	FROM
-		pay.pay_balsitm_bals a
-	WHERE
-		a.bals_itm_id = p_bals_itm_id
-		AND a.person_id = p_prsn_id
-		AND a.bals_date = p_trnsdate
-		AND a.source_trns_ids LIKE '%,' || p_pytrnsid || ',%';
-	RETURN COALESCE(v_cntr, 0) > 0;
-EXCEPTION
-	WHEN OTHERS THEN
-		RETURN FALSE;
 END;
 
 $BODY$;
@@ -3439,6 +3562,7 @@ DECLARE
 	v_dteEarned character varying(21) := '';
 	v_tstDte character varying(21) := '';
 	v_trns_date character varying(21) := '';
+	v_trns_date2 character varying(21) := '';
 	b_res boolean := FALSE;
 	v_res1 boolean := FALSE;
 	v_dfltVal bigint := - 1;
@@ -3456,7 +3580,8 @@ DECLARE
 	v_nwAmnt numeric := 0;
 	v_tstPyTrnsID bigint := - 1;
 BEGIN
-	v_trns_date := to_char(to_timestamp(p_trns_date, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
+	v_trns_date := to_char(to_timestamp(p_trns_date, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');	
+	v_trns_date2 := p_trns_date;
 	IF (upper(p_itm_maj_typ) = upper('Balance Item')) THEN
 		v_Reslg := rpt.updaterptlogmsg (p_msg_id, '<br/> Item:' || p_itm_name || ' Type ' || p_itm_maj_typ, p_dateStr, p_who_rn);
 		p_retmsg := 'Continue';
@@ -3557,16 +3682,17 @@ BEGIN
 					END IF;
 				END IF;
 				v_tstPyTrnsID := - 1;
-				IF (v_tstPyTrnsID <= 0) THEN
-					v_result1 := pay.createPaymntLine (p_prsn_id, p_itm_id, v_pay_amount, p_trns_date, 'Mass Pay Run', p_trns_typ, p_mspy_id, v_pay_trns_desc, v_crncy_id, p_dateStr, 'VALID', - 1, p_glDate, v_dteEarned, p_who_rn);
+				IF (v_tstPyTrnsID <= 0) THEN		
+					v_trns_date2 := gst.getDB_Date_TmIntvlAddSub (v_trns_date2, '1 second', 'Add');
+					v_result1 := pay.createPaymntLine (p_prsn_id, p_itm_id, v_pay_amount, v_trns_date2, 'Mass Pay Run', p_trns_typ, p_mspy_id, v_pay_trns_desc, v_crncy_id, p_dateStr, 'VALID', - 1, p_glDate, v_dteEarned, p_who_rn);
 				ELSE
 					v_Reslg := rpt.updaterptlogmsg (p_msg_id, '<br/>Same Payment has been made for this Person on the same Date already! Person:' || p_loc_id_no || ' Item: ' || p_itm_name, p_dateStr, p_who_rn);
 				END IF;
 				--Update Balance Items
-				v_result1 := pay.updtBlsItms (p_prsn_id, p_itm_id, v_pay_amount, p_trns_date, 'Mass Pay Run', - 1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
+				v_result1 := pay.updtBlsItms (p_prsn_id, p_itm_id, v_pay_amount, v_trns_date2, 'Mass Pay Run', -1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
 				v_res1 := TRUE;
 				IF org.get_payitm_createsAccntng (p_itm_id) = '1' THEN
-					v_res1 := pay.sendToGLInterfaceRetro (p_prsn_id, p_loc_id_no, p_itm_id, p_itm_name, p_itm_uom, v_pay_amount, p_trns_date, v_pay_trns_desc, v_crncy_id, p_msg_id, p_log_tbl, p_dateStr, 'Mass Pay Run', p_glDate, - 1, v_dteEarned, p_who_rn);
+					v_res1 := pay.sendToGLInterfaceRetro (p_prsn_id, p_loc_id_no, p_itm_id, p_itm_name, p_itm_uom, v_pay_amount, v_trns_date2, v_pay_trns_desc, v_crncy_id, p_msg_id, p_log_tbl, p_dateStr, 'Mass Pay Run', p_glDate, - 1, v_dteEarned, p_who_rn);
 				END IF;
 				IF (v_res1) THEN
 					v_Reslg := rpt.updaterptlogmsg (p_msg_id, '<br/>Successfully processed Payment for Person:' || p_loc_id_no || ' Item: ' || p_itm_name, p_dateStr, p_who_rn);
@@ -3773,18 +3899,20 @@ BEGIN
 						END IF;
 						--|| ' REQUEST ID:' || rd9.pay_request_id
 						v_tstPyTrnsID := pay.hsPrsnBnPaidItmMsPy2 (p_prsn_id, p_itm_id, p_trns_date, v_pay_amount, rd9.pay_request_id);
-						IF (v_tstPyTrnsID <= 0) THEN
-							v_result1 := pay.createPaymntLine3 (p_prsn_id, p_itm_id, v_pay_amount, p_trns_date, 'Mass Pay Run', p_trns_typ, p_mspy_id, v_pay_trns_desc, v_crncy_id, p_dateStr, 'VALID', - 1, p_glDate, v_dteEarned, p_who_rn, rd9.pay_request_id);
+						IF (v_tstPyTrnsID <= 0) THEN		
+						    v_trns_date2 := gst.getDB_Date_TmIntvlAddSub (v_trns_date2, '1 second', 'Add');
+							--to_char(to_timestamp(v_trns_date2, 'DD-Mon-YYYY HH24:MI:SS'), 'YYYY-MM-DD HH24:MI:SS');
+							v_result1 := pay.createPaymntLine3 (p_prsn_id, p_itm_id, v_pay_amount, v_trns_date2, 'Mass Pay Run', p_trns_typ, p_mspy_id, v_pay_trns_desc, v_crncy_id, p_dateStr, 'VALID', - 1, p_glDate, v_dteEarned, p_who_rn, rd9.pay_request_id);
 						ELSE
 							v_Reslg := rpt.updaterptlogmsg (p_msg_id, '<br/>Same Payment has been made FOR this Person ON the same Date already! Person:' || p_loc_id_no || ' Item:' || p_itm_name || ' REQUEST ID:' || rd9.pay_request_id, p_dateStr, p_who_rn);
 						END IF;
 						--Update Balance Items
 						--RAISE NOTICE 'updtBlsItms RUN 2 %', v_pay_amount;
-						v_result1 := pay.updtBlsItms (p_prsn_id, p_itm_id, v_pay_amount, p_trns_date, 'Mass Pay Run', - 1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
+						v_result1 := pay.updtBlsItms (p_prsn_id, p_itm_id, v_pay_amount, v_trns_date2, 'Mass Pay Run', - 1, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), p_who_rn);
 						--RAISE NOTICE 'sendToGLInterface RUN 2 %', v_pay_amount;
 						v_res1 := TRUE;
 						IF org.get_payitm_createsAccntng (p_itm_id) = '1' THEN
-							v_res1 := pay.sendToGLInterface (p_prsn_id, p_loc_id_no, p_itm_id, p_itm_name, p_itm_uom, v_pay_amount, p_trns_date, v_pay_trns_desc, v_crncy_id, p_msg_id, p_log_tbl, p_dateStr, 'Mass Pay Run', p_glDate, - 1, p_who_rn);
+							v_res1 := pay.sendToGLInterface (p_prsn_id, p_loc_id_no, p_itm_id, p_itm_name, p_itm_uom, v_pay_amount, v_trns_date2, v_pay_trns_desc, v_crncy_id, p_msg_id, p_log_tbl, p_dateStr, 'Mass Pay Run', p_glDate, - 1, p_who_rn);
 							--RAISE NOTICE 'sendToGLInterface RUN 5 %', v_pay_amount;
 						END IF;
 						IF (v_res1) THEN
