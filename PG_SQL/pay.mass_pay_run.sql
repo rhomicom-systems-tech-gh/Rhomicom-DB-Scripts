@@ -21,7 +21,7 @@ EXCEPTION
 END;
 $BODY$;
 
-DROP FUNCTION pay.autoCorrectBlsItemBalance (p_prsn_id bigint, p_bals_itm_id bigint, p_who_rn bigint);
+--DROP FUNCTION pay.autoCorrectBlsItemBalance (p_prsn_id bigint, p_bals_itm_id bigint, p_who_rn bigint);
 
 CREATE OR REPLACE FUNCTION pay.autoCorrectBlsItemBalance (p_prsn_id bigint, p_bals_itm_id bigint, p_strt_dte character varying, p_end_dte character varying, p_who_rn bigint)
     RETURNS text

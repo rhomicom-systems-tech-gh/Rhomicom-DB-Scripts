@@ -3012,6 +3012,74 @@ END;
 
 $BODY$;
 
+DROP FUNCTION IF EXISTS accb.autoRoundGLIntrfcIDs (p_intrfcids character varying, p_tblnme character varying, p_accntid integer);
+CREATE OR REPLACE FUNCTION accb.getglintrfcidamntsum(
+	p_intrfcids character varying,
+	p_tblnme character varying,
+	p_accntid integer,
+	OUT p_dbtsum numeric,
+	OUT p_crdtsum numeric)
+    RETURNS record
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
+<< outerblock >>
+  DECLARE
+  v_SQL TEXT := '';
+BEGIN
+  p_dbtSum := 0;
+  p_crdtSum := 0;
+  v_SQL := 'SELECT SUM(COALESCE(round(a.dbt_amount,2),0)), SUM(COALESCE(round(a.crdt_amount,2),0))
+FROM ' || p_tblNme || ' a WHERE (a.accnt_id = ' || p_accntID || '
+and ''' || p_intrfcids || ''' like ''%,'' || a.interface_id || '',%'')';
+  --RAISE NOTICE 'v_SQL:%', v_SQL;
+  EXECUTE v_SQL
+    INTO p_dbtSum, p_crdtSum;
+EXCEPTION
+  WHEN OTHERS
+    THEN
+      p_dbtSum := 0;
+      p_crdtSum := 0;
+  --RETURN 'ERROR:';
+END;
+$BODY$;
+
+CREATE OR REPLACE FUNCTION accb.get_gl_intrfc_recs(
+	p_intrfc_tbl_name character varying,
+	p_orgid integer,
+	p_interval character varying)
+    RETURNS TABLE(accnt_id integer, trnsdte character varying, dbt_sum numeric, crdt_sum numeric, net_sum numeric, func_cur_id integer) 
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+    ROWS 1000
+
+AS $BODY$
+DECLARE
+  whereclause TEXT;
+  fullsql     TEXT;
+  records     RECORD;
+  exeQuery    TEXT;
+BEGIN
+  fullsql := 'SELECT a.accnt_id,
+       to_char(to_timestamp(a.trnsctn_date, ''YYYY-MM-DD HH24:MI:SS''), ''DD-Mon-YYYY HH24:MI:SS'')::CHARACTER VARYING trnsdte,
+       SUM(round(a.dbt_amount,2))::NUMERIC dbt_sum,
+       SUM(round(a.crdt_amount,2))::NUMERIC crdt_sum,
+       SUM(round(a.net_amount,2))::NUMERIC net_sum,
+       a.func_cur_id
+FROM ' || p_intrfc_tbl_name || ' a,
+    accb.accb_chart_of_accnts b
+    WHERE a.gl_batch_id = -1 AND a.accnt_id = b.accnt_id AND b.org_id = ' || p_orgid || '
+    AND age(now(),
+    to_timestamp(a.last_update_date, ''YYYY-MM-DD HH24:MI:SS'')) > INTERVAL ''' || p_interval || '''' ||
+             ' GROUP BY a.accnt_id, a.trnsctn_date, a.func_cur_id ORDER BY to_timestamp(a.trnsctn_date, ''YYYY-MM-DD HH24:MI:SS'')';
+  
+  exeQuery := '' || fullsql || '';
+  RETURN QUERY EXECUTE exeQuery;
+END
+$BODY$;
+
 CREATE OR REPLACE FUNCTION accb.close_period (date_to_close character varying, who_rn bigint, run_date character varying, orgidno integer, msgid bigint)
 	RETURNS character varying
 	LANGUAGE 'plpgsql'

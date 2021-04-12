@@ -1,6 +1,10 @@
 --DROP SCHEMA hosp CASCADE;
 --CREATE OR REPLACE FUNCTION
 --CREATE FUNCTION
+
+ALTER TABLE aca.aca_assessment_columns 
+ADD COLUMN lov_name character varying(200) NOT NULL DEFAULT '';
+
 ALTER TABLE accb.accb_fa_assets_rgstr
     ADD COLUMN rvnu_accnt_id integer NOT NULL DEFAULT -1;
 
