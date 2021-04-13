@@ -1,3 +1,35 @@
+CREATE OR REPLACE FUNCTION public.isnumeric(text) RETURNS BOOLEAN AS $$
+DECLARE 
+    x NUMERIC;
+BEGIN
+    x = $1::NUMERIC;
+    RETURN TRUE;
+EXCEPTION WHEN others THEN
+    RETURN FALSE;
+END;
+$$
+STRICT
+LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION public.isnumeric(text) RETURNS BOOLEAN AS $$
+DECLARE 
+    x NUMERIC;
+BEGIN
+    x = $1::NUMERIC;
+    RETURN TRUE;
+EXCEPTION WHEN others THEN
+    RETURN FALSE;
+END;
+$$
+STRICT
+LANGUAGE plpgsql IMMUTABLE;
+
+SELECT distinct data_col15 from aca.aca_assmnt_col_vals
+WHERE public.isnumeric(data_col15) = FALSE
+UNION
+SELECT distinct data_col16 from aca.aca_assmnt_col_vals
+WHERE public.isnumeric(data_col16) = FALSE;
+
 CREATE OR REPLACE FUNCTION pay.get_itm_st_id(
 	p_itm_st_nm character varying, p_org_id integer)
     RETURNS integer
