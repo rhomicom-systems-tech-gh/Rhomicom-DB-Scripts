@@ -1,3 +1,560 @@
+/*
+accb.get_ltst_prnt_accnt_tbals3
+accb.get_prnt_trns_sum_rcsv
+accb.get_ltst_prnt_accnt_tbals2
+ */
+CREATE OR REPLACE FUNCTION accb.get_conso_accnt_tbals3 (accntid integer , balsdte character varying , typ character varying , rptsgmt1 integer , rptsgmt2 integer , rptsgmt3 integer , rptsgmt4 integer , rptsgmt5 integer , rptsgmt6 integer , rptsgmt7 integer , rptsgmt8 integer , rptsgmt9 integer , rptsgmt10 integer)
+	RETURNS numeric
+	LANGUAGE 'plpgsql'
+	COST 100 VOLATILE PARALLEL UNSAFE
+	AS $BODY$
+	<< outerblock >>
+DECLARE
+	bid numeric := 0.00;
+	sgmntVals character varying := '' || rptSgmt1 || rptSgmt2 || rptSgmt3 || rptSgmt4 || rptSgmt5 || rptSgmt6 || rptSgmt7 || rptSgmt8 || rptSgmt9 || rptSgmt10;
+BEGIN
+	/*select SUM(accb.get_ltst_accnt_bals(a.accnt_id, $2, $3)) INTO bid
+	 from accb.accb_chart_of_accnts a where a.prnt_accnt_id=$1;*/
+	WITH RECURSIVE subaccnt (
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+) AS (
+		WITH RECURSIVE subsubaccnt (
+			accnt_id
+			, prnt_accnt_id
+			, mapped_grp_accnt_id
+			, accnt_num
+			, accnt_name
+			, netbal
+			, depth
+			, path
+			, CYCLE
+			, space
+) AS (
+			-- non-recursive term
+			SELECT
+				e.accnt_id
+				, e.prnt_accnt_id
+				, e.mapped_grp_accnt_id
+				, e.accnt_num
+				, e.accnt_name
+				, (
+					CASE WHEN e.has_sub_ledgers = '1' THEN
+						0.00
+					ELSE
+						accb.get_ltst_accnt_bals (e.accnt_id
+							, $2
+							, $3)
+					END) netbal
+				, 1
+				, ARRAY[e.accnt_id]
+				, FALSE
+				, ''
+			FROM
+				accb.accb_chart_of_accnts e
+			WHERE (
+				CASE WHEN e.prnt_accnt_id > 0 THEN
+					e.prnt_accnt_id
+				ELSE
+					e.control_account_id
+				END) = $1
+			AND e.is_net_income = '0'
+			AND (((e.accnt_seg1_val_id = $4
+						OR $4 = - 1)
+					AND (e.accnt_seg2_val_id = $5
+						OR $5 = - 1)
+					AND (e.accnt_seg3_val_id = $6
+						OR $6 = - 1)
+					AND (e.accnt_seg4_val_id = $7
+						OR $7 = - 1)
+					AND (e.accnt_seg5_val_id = $8
+						OR $8 = - 1)
+					AND (e.accnt_seg6_val_id = $9
+						OR $9 = - 1)
+					AND (e.accnt_seg7_val_id = $10
+						OR $10 = - 1)
+					AND (e.accnt_seg8_val_id = $11
+						OR $11 = - 1)
+					AND (e.accnt_seg9_val_id = $12
+						OR $12 = - 1)
+					AND (e.accnt_seg10_val_id = $13
+						OR $13 = - 1))
+				OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+				OR e.is_prnt_accnt = '1'
+				OR e.has_sub_ledgers = '1')
+		UNION ALL
+		-- recursive term
+		SELECT
+			d.accnt_id
+			, d.prnt_accnt_id
+			, d.mapped_grp_accnt_id
+			, d.accnt_num
+			, d.accnt_name
+			, (
+				CASE WHEN d.has_sub_ledgers = '1' THEN
+					0.00
+				ELSE
+					accb.get_ltst_accnt_bals (d.accnt_id
+						, $2
+						, $3)
+				END) netbal
+			, sd.depth + 1
+			, path || d.accnt_id
+			, d.accnt_id = ANY (path)
+			, space || '.'
+		FROM
+			accb.accb_chart_of_accnts AS d
+			, subsubaccnt AS sd
+		WHERE (
+			CASE WHEN d.prnt_accnt_id > 0 THEN
+				d.prnt_accnt_id
+			ELSE
+				d.control_account_id
+			END) = sd.accnt_id
+		AND d.is_net_income = '0'
+		AND NOT CYCLE
+		AND (((d.accnt_seg1_val_id = $4
+					OR $4 = - 1)
+				AND (d.accnt_seg2_val_id = $5
+					OR $5 = - 1)
+				AND (d.accnt_seg3_val_id = $6
+					OR $6 = - 1)
+				AND (d.accnt_seg4_val_id = $7
+					OR $7 = - 1)
+				AND (d.accnt_seg5_val_id = $8
+					OR $8 = - 1)
+				AND (d.accnt_seg6_val_id = $9
+					OR $9 = - 1)
+				AND (d.accnt_seg7_val_id = $10
+					OR $10 = - 1)
+				AND (d.accnt_seg8_val_id = $11
+					OR $11 = - 1)
+				AND (d.accnt_seg9_val_id = $12
+					OR $12 = - 1)
+				AND (d.accnt_seg10_val_id = $13
+					OR $13 = - 1))
+			OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+			OR d.is_prnt_accnt = '1'
+			OR d.has_sub_ledgers = '1'))
+	SELECT
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+	FROM
+		subsubaccnt
+	UNION ALL
+	-- recursive term
+	SELECT
+		d.accnt_id
+		, d.prnt_accnt_id
+		, d.mapped_grp_accnt_id
+		, d.accnt_num
+		, d.accnt_name
+		, (
+			CASE WHEN d.has_sub_ledgers = '1' THEN
+				0.00
+			ELSE
+				accb.get_ltst_accnt_bals (d.accnt_id
+					, $2
+					, $3)
+			END) netbal
+		, sd.depth + 1
+		, path || d.accnt_id
+		, d.accnt_id = ANY (path)
+		, space || '.'
+	FROM
+		accb.accb_chart_of_accnts AS d
+		, subaccnt AS sd
+	WHERE
+		d.mapped_grp_accnt_id = sd.accnt_id
+		AND d.is_net_income = '0'
+		AND NOT CYCLE
+		AND (((d.accnt_seg1_val_id = $4
+					OR $4 = - 1)
+				AND (d.accnt_seg2_val_id = $5
+					OR $5 = - 1)
+				AND (d.accnt_seg3_val_id = $6
+					OR $6 = - 1)
+				AND (d.accnt_seg4_val_id = $7
+					OR $7 = - 1)
+				AND (d.accnt_seg5_val_id = $8
+					OR $8 = - 1)
+				AND (d.accnt_seg6_val_id = $9
+					OR $9 = - 1)
+				AND (d.accnt_seg7_val_id = $10
+					OR $10 = - 1)
+				AND (d.accnt_seg8_val_id = $11
+					OR $11 = - 1)
+				AND (d.accnt_seg9_val_id = $12
+					OR $12 = - 1)
+				AND (d.accnt_seg10_val_id = $13
+					OR $13 = - 1))
+			OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+			OR d.is_prnt_accnt = '1'
+			OR d.has_sub_ledgers = '1'))
+SELECT
+	SUM(netbal) INTO bid
+FROM
+	subaccnt
+WHERE
+	accnt_num ILIKE '%';
+	RETURN COALESCE(bid , 0);
+END;
+$BODY$;
+
+CREATE OR REPLACE FUNCTION accb.get_conso_accnt_tbals2 (accntid integer , balsdte character varying , typ character varying , rptsgmt1 integer , rptsgmt2 integer , rptsgmt3 integer , rptsgmt4 integer , rptsgmt5 integer , rptsgmt6 integer , rptsgmt7 integer , rptsgmt8 integer , rptsgmt9 integer , rptsgmt10 integer)
+	RETURNS numeric
+	LANGUAGE 'plpgsql'
+	COST 100 VOLATILE PARALLEL UNSAFE
+	AS $BODY$
+	<< outerblock >>
+DECLARE
+	bid numeric := 0.00;
+	sgmntVals character varying := '' || rptSgmt1 || rptSgmt2 || rptSgmt3 || rptSgmt4 || rptSgmt5 || rptSgmt6 || rptSgmt7 || rptSgmt8 || rptSgmt9 || rptSgmt10;
+BEGIN
+	/*select SUM(accb.get_ltst_accnt_bals(a.accnt_id, $2, $3)) INTO bid
+	 from accb.accb_chart_of_accnts a where a.prnt_accnt_id=$1;*/
+	WITH RECURSIVE subaccnt (
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+) AS (
+		WITH RECURSIVE subsubaccnt (
+			accnt_id
+			, prnt_accnt_id
+			, mapped_grp_accnt_id
+			, accnt_num
+			, accnt_name
+			, netbal
+			, depth
+			, path
+			, CYCLE
+			, space
+) AS (
+			-- non-recursive term
+			SELECT
+				e.accnt_id
+				, e.prnt_accnt_id
+				, e.mapped_grp_accnt_id
+				, e.accnt_num
+				, e.accnt_name
+				, (
+					CASE WHEN e.has_sub_ledgers = '1' THEN
+						0.00
+					ELSE
+						accb.get_ltst_accnt_bals2 (e.accnt_id
+							, $2
+							, $3)
+					END) netbal
+				, 1
+				, ARRAY[e.accnt_id]
+				, FALSE
+				, ''
+			FROM
+				accb.accb_chart_of_accnts e
+			WHERE (
+				CASE WHEN e.prnt_accnt_id > 0 THEN
+					e.prnt_accnt_id
+				ELSE
+					e.control_account_id
+				END) = $1
+			AND e.is_net_income = '0'
+			AND (((e.accnt_seg1_val_id = $4
+						OR $4 = - 1)
+					AND (e.accnt_seg2_val_id = $5
+						OR $5 = - 1)
+					AND (e.accnt_seg3_val_id = $6
+						OR $6 = - 1)
+					AND (e.accnt_seg4_val_id = $7
+						OR $7 = - 1)
+					AND (e.accnt_seg5_val_id = $8
+						OR $8 = - 1)
+					AND (e.accnt_seg6_val_id = $9
+						OR $9 = - 1)
+					AND (e.accnt_seg7_val_id = $10
+						OR $10 = - 1)
+					AND (e.accnt_seg8_val_id = $11
+						OR $11 = - 1)
+					AND (e.accnt_seg9_val_id = $12
+						OR $12 = - 1)
+					AND (e.accnt_seg10_val_id = $13
+						OR $13 = - 1))
+				OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+				OR e.is_prnt_accnt = '1'
+				OR e.has_sub_ledgers = '1')
+		UNION ALL
+		-- recursive term
+		SELECT
+			d.accnt_id
+			, d.prnt_accnt_id
+			, d.mapped_grp_accnt_id
+			, d.accnt_num
+			, d.accnt_name
+			, (
+				CASE WHEN d.has_sub_ledgers = '1' THEN
+					0.00
+				ELSE
+					accb.get_ltst_accnt_bals2 (d.accnt_id
+						, $2
+						, $3)
+				END) netbal
+			, sd.depth + 1
+			, path || d.accnt_id
+			, d.accnt_id = ANY (path)
+			, space || '.'
+		FROM
+			accb.accb_chart_of_accnts AS d
+			, subsubaccnt AS sd
+		WHERE (
+			CASE WHEN d.prnt_accnt_id > 0 THEN
+				d.prnt_accnt_id
+			ELSE
+				d.control_account_id
+			END) = sd.accnt_id
+		AND d.is_net_income = '0'
+		AND NOT CYCLE
+		AND (((d.accnt_seg1_val_id = $4
+					OR $4 = - 1)
+				AND (d.accnt_seg2_val_id = $5
+					OR $5 = - 1)
+				AND (d.accnt_seg3_val_id = $6
+					OR $6 = - 1)
+				AND (d.accnt_seg4_val_id = $7
+					OR $7 = - 1)
+				AND (d.accnt_seg5_val_id = $8
+					OR $8 = - 1)
+				AND (d.accnt_seg6_val_id = $9
+					OR $9 = - 1)
+				AND (d.accnt_seg7_val_id = $10
+					OR $10 = - 1)
+				AND (d.accnt_seg8_val_id = $11
+					OR $11 = - 1)
+				AND (d.accnt_seg9_val_id = $12
+					OR $12 = - 1)
+				AND (d.accnt_seg10_val_id = $13
+					OR $13 = - 1))
+			OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+			OR d.is_prnt_accnt = '1'
+			OR d.has_sub_ledgers = '1'))
+	SELECT
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+	FROM
+		subsubaccnt
+	UNION ALL
+	-- Second recursive term
+	SELECT
+		d.accnt_id
+		, d.prnt_accnt_id
+		, d.mapped_grp_accnt_id
+		, d.accnt_num
+		, d.accnt_name
+		, (
+			CASE WHEN d.has_sub_ledgers = '1' THEN
+				0.00
+			ELSE
+				accb.get_ltst_accnt_bals2 (d.accnt_id
+					, $2
+					, $3)
+			END) netbal
+		, sd.depth + 1
+		, path || d.accnt_id
+		, d.accnt_id = ANY (path)
+		, space || '.'
+	FROM
+		accb.accb_chart_of_accnts AS d
+		, subaccnt AS sd
+	WHERE
+		d.mapped_grp_accnt_id = sd.accnt_id
+		AND d.is_net_income = '0'
+		AND NOT CYCLE
+		AND (((d.accnt_seg1_val_id = $4
+					OR $4 = - 1)
+				AND (d.accnt_seg2_val_id = $5
+					OR $5 = - 1)
+				AND (d.accnt_seg3_val_id = $6
+					OR $6 = - 1)
+				AND (d.accnt_seg4_val_id = $7
+					OR $7 = - 1)
+				AND (d.accnt_seg5_val_id = $8
+					OR $8 = - 1)
+				AND (d.accnt_seg6_val_id = $9
+					OR $9 = - 1)
+				AND (d.accnt_seg7_val_id = $10
+					OR $10 = - 1)
+				AND (d.accnt_seg8_val_id = $11
+					OR $11 = - 1)
+				AND (d.accnt_seg9_val_id = $12
+					OR $12 = - 1)
+				AND (d.accnt_seg10_val_id = $13
+					OR $13 = - 1))
+			OR sgmntVals = '-1-1-1-1-1-1-1-1-1-1'
+			OR d.is_prnt_accnt = '1'
+			OR d.has_sub_ledgers = '1'))
+SELECT
+	SUM(netbal) INTO bid
+FROM
+	subaccnt
+WHERE
+	accnt_num ILIKE '%';
+	RETURN COALESCE(bid , 0);
+END;
+$BODY$;
+
+CREATE OR REPLACE FUNCTION accb.get_conso_trns_sum_rcsv (prnt_accntid integer , mapped_grp_accnt_id integer , amntcol character varying , asatdte character varying)
+	RETURNS numeric
+	LANGUAGE 'plpgsql'
+	COST 100 VOLATILE PARALLEL UNSAFE
+	AS $BODY$
+	<< outerblock >>
+DECLARE
+	v_res numeric := 0.00;
+BEGIN
+	WITH RECURSIVE subaccnt (
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+) AS (
+		WITH RECURSIVE subsubaccnt (
+			accnt_id
+			, prnt_accnt_id
+			, mapped_grp_accnt_id
+			, accnt_num
+			, accnt_name
+			, netbal
+			, depth
+			, path
+			, CYCLE
+			, space
+) AS (
+			-- non-recursive term
+			SELECT
+				e.accnt_id
+				, e.prnt_accnt_id
+				, e.mapped_grp_accnt_id
+				, e.accnt_num
+				, e.accnt_name
+				, accb.get_accnt_trnssum1 (e.accnt_id
+					, $2
+					, $3) netbal
+				, 1
+				, ARRAY[e.accnt_id]
+				, FALSE
+				, ''
+			FROM
+				accb.accb_chart_of_accnts e
+			WHERE (
+				CASE WHEN e.prnt_accnt_id > 0 THEN
+					e.prnt_accnt_id
+				ELSE
+					e.control_account_id
+				END) = $1
+		UNION ALL
+		-- recursive term
+		SELECT
+			d.accnt_id
+			, d.prnt_accnt_id
+			, d.mapped_grp_accnt_id
+			, d.accnt_num
+			, d.accnt_name
+			, accb.get_accnt_trnssum1 (d.accnt_id
+				, $2
+				, $3) netbal
+			, sd.depth + 1
+			, path || d.accnt_id
+			, d.accnt_id = ANY (path)
+			, space || '.'
+		FROM
+			accb.accb_chart_of_accnts AS d
+			, subsubaccnt AS sd
+		WHERE (
+			CASE WHEN d.prnt_accnt_id > 0 THEN
+				d.prnt_accnt_id
+			ELSE
+				d.control_account_id
+			END) = sd.accnt_id
+		AND NOT CYCLE
+)
+	SELECT
+		accnt_id
+		, prnt_accnt_id
+		, mapped_grp_accnt_id
+		, accnt_num
+		, accnt_name
+		, netbal
+		, depth
+		, path
+		, CYCLE
+		, space
+	FROM
+		subsubaccnt
+	UNION ALL
+	-- second recursive term
+	SELECT
+		d.accnt_id
+		, d.prnt_accnt_id
+		, d.mapped_grp_accnt_id
+		, d.accnt_num
+		, d.accnt_name
+		, accb.get_accnt_trnssum1 (d.accnt_id
+			, $2
+			, $3) netbal
+		, sd.depth + 1
+		, path || d.accnt_id
+		, d.accnt_id = ANY (path)
+		, space || '.'
+	FROM
+		accb.accb_chart_of_accnts AS d
+		, subaccnt AS sd
+	WHERE
+		d.mapped_grp_accnt_id = sd.accnt_id
+		AND NOT CYCLE
+)
+SELECT
+	SUM(netbal) INTO v_res
+FROM
+	subaccnt;
+	RETURN COALESCE(v_res , 0);
+END;
+$BODY$;
+
 CREATE OR REPLACE FUNCTION accb.populate_conso_trial_bals (p_rpt_run_id bigint , p_use_net_pos character varying , p_as_at_date character varying , p_max_acnt_level integer , p_start_accnt_id integer , p_shw_varncs character varying , p_sgmnt1_val integer , p_sgmnt2_val integer , p_sgmnt3_val integer , p_sgmnt4_val integer , p_sgmnt5_val integer , p_sgmnt6_val integer , p_sgmnt7_val integer , p_sgmnt8_val integer , p_sgmnt9_val integer , p_sgmnt10_val integer , p_who_rn bigint , p_run_date character varying , p_orgidno integer , p_msgid bigint)
 	RETURNS text
 	LANGUAGE 'plpgsql'
@@ -358,18 +915,18 @@ ORDER BY
 		IF vRD.is_prnt_accnt = '1' THEN
 			--For Parent Accounts
 			IF p_shw_varncs = 'Yes' THEN
-				v_amnt1 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-				v_amnt2 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-				v_amnt3 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+				v_amnt1 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+				v_amnt2 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+				v_amnt3 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
 				v_amnt4 := 0;
-				v_amnt1 := v_amnt1 - accb.get_prnt_trns_sum_rcsv (vrd.accnt_id , 'dbt_amount' , p_as_at_date);
-				v_amnt2 := v_amnt2 - accb.get_prnt_trns_sum_rcsv (vrd.accnt_id , 'crdt_amount' , p_as_at_date);
-				v_amnt3 := v_amnt3 - accb.get_prnt_trns_sum_rcsv (vrd.accnt_id , 'net_amount' , p_as_at_date);
+				v_amnt1 := v_amnt1 - accb.get_conso_trns_sum_rcsv (vrd.accnt_id , 'dbt_amount' , p_as_at_date);
+				v_amnt2 := v_amnt2 - accb.get_conso_trns_sum_rcsv (vrd.accnt_id , 'crdt_amount' , p_as_at_date);
+				v_amnt3 := v_amnt3 - accb.get_conso_trns_sum_rcsv (vrd.accnt_id , 'net_amount' , p_as_at_date);
 			ELSE
 				IF (p_use_net_pos ILIKE 'Yes') THEN
-					v_amnt1 := accb.get_ltst_prnt_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-					v_amnt2 := accb.get_ltst_prnt_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-					v_amnt3 := accb.get_ltst_prnt_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt1 := accb.get_conso_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt2 := accb.get_conso_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt3 := accb.get_conso_accnt_tbals2 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
 					IF (v_amnt2 > v_amnt1) THEN
 						v_amnt2 := v_amnt2 - v_amnt1;
 						v_amnt4 := v_amnt1;
@@ -380,9 +937,9 @@ ORDER BY
 						v_amnt2 := 0;
 					END IF;
 				ELSE
-					v_amnt1 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-					v_amnt2 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
-					v_amnt3 := accb.get_ltst_prnt_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt1 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'dbt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt2 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'crdt_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
+					v_amnt3 := accb.get_conso_accnt_tbals3 (vrd.accnt_id , p_as_at_date , 'net_amount' , p_sgmnt1_val , p_sgmnt2_val , p_sgmnt3_val , p_sgmnt4_val , p_sgmnt5_val , p_sgmnt6_val , p_sgmnt7_val , p_sgmnt8_val , p_sgmnt9_val , p_sgmnt10_val);
 					v_amnt4 := 0;
 				END IF;
 			END IF;

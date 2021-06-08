@@ -6,8 +6,3 @@ docker exec -it rho-pgadmin sh -c "cd /var/lib/pgadmin/storage/info_rhomicom.com
 psql -h rho-pgdb -p 5432 -U postgres -v -d tacmsapi < makerzgroup_tac.sql
 
 
-
-accb.get_ltst_prnt_accnt_tbals3
-accb.get_prnt_trns_sum_rcsv
-accb.get_ltst_prnt_accnt_tbals2
-accb.get_ltst_prnt_accnt_tbals3
