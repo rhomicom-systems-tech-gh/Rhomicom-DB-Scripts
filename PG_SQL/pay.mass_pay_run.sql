@@ -49,9 +49,9 @@ BEGIN
 			AND item_type_id = v_item_type_id;
 		IF AGE(TO_TIMESTAMP(v_clsfctn_date || '-' || v_crnt_yr || ' 00:00:00' , 'DD-Mon-YYYY HH24:MI:SS') , TO_TIMESTAMP(SUBSTRING(v_rqst_date , 1 , 10) || ' 00:00:00' , 'YYYY-MM-DD HH24:MI:SS')) < interval '0 second' THEN
 			v_crnt_yr := ((v_crnt_yr::integer) + 1) || '';
-		ELSIF AGE(TO_TIMESTAMP(v_clsfctn_date || '-' || v_crnt_yr || ' 00:00:00' , 'DD-Mon-YYYY HH24:MI:SS') , TO_TIMESTAMP(SUBSTRING(v_rqst_date , 1 , 10) || ' 00:00:00' , 'YYYY-MM-DD HH24:MI:SS')) > interval '6 month' THEN
+		END IF;
+		IF AGE(TO_TIMESTAMP(v_clsfctn_date || '-' || v_crnt_yr || ' 00:00:00' , 'DD-Mon-YYYY HH24:MI:SS') , TO_TIMESTAMP(SUBSTRING(v_rqst_date , 1 , 10) || ' 00:00:00' , 'YYYY-MM-DD HH24:MI:SS')) > interval '1 year' THEN
 			v_crnt_yr := ((v_crnt_yr::integer) - 1) || '';
-			bid := v_clsfctn_date || '-' || v_crnt_yr;
 		END IF;
 		bid := v_clsfctn_date || '-' || v_crnt_yr;
 	END IF;
