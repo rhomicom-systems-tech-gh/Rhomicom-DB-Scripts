@@ -431,7 +431,7 @@ WHERE
 END;
 $BODY$;
 
-CREATE OR REPLACE FUNCTION accb.get_conso_trns_sum_rcsv (prnt_accntid integer , mapped_grp_accnt_id integer , amntcol character varying , asatdte character varying)
+CREATE OR REPLACE FUNCTION accb.get_conso_trns_sum_rcsv (prnt_accntid integer, amntcol character varying , asatdte character varying)
 	RETURNS numeric
 	LANGUAGE 'plpgsql'
 	COST 100 VOLATILE PARALLEL UNSAFE
