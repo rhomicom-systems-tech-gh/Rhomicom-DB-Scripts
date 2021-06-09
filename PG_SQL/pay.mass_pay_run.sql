@@ -79,24 +79,24 @@ DECLARE
 	v_item_nm character varying(200) := '';
 	v_date_prcsd character varying(21) := '';
 	v_prncpl_bals numeric := 0;
-	v_repay_prd numeric :=0;
+	v_repay_prd numeric := 0;
 	v_nwSQL text := '';
-	v_person_id bigint :=-1;
+	v_person_id bigint := - 1;
 BEGIN
 	SELECT
 		a.last_update_date
 		, a.local_clsfctn
 		, a.item_type_id
 		, e.item_type_name
-		, a.date_processed,
-		a.rqstd_for_person_id
+		, a.date_processed
+		, a.rqstd_for_person_id
 		, a.repay_period INTO v_rqst_date
 		, v_clsfctn_Nm
 		, v_item_type_id
 		, v_item_nm
 		, v_date_prcsd
+		, v_person_id
 		, v_repay_prd
-		,v_person_id
 	FROM
 		pay.pay_loan_pymnt_rqsts a
 		, pay.loan_pymnt_invstmnt_typs e
@@ -106,11 +106,11 @@ BEGIN
 	v_clsfctn_date := TO_CHAR(TO_TIMESTAMP(pay.get_tk_loan_end_dte (p_request_id) , 'DD-MON-YYYY') + interval '15 day' , 'YYYY-MM-DD');
 	v_prncpl_bals := pay.get_ltst_blsitm_bals (v_person_id , org.get_payitm_id (REPLACE(v_item_nm , p_replace_str , '') || ' Principal Balance') , v_clsfctn_date);
 	RETURN COALESCE(v_prncpl_bals , 0.00);
-/*EXCEPTION
-	WHEN OTHERS THEN
-		RETURN 0.00;*/
-END;
 
+	/*EXCEPTION
+	 WHEN OTHERS THEN
+	 RETURN 0.00;*/
+END;
 $BODY$;
 
 CREATE OR REPLACE FUNCTION gst.getDB_Date_TmIntvlAddSub (p_dmytme character varying , p_intrvl character varying , p_addOrSbtrct character varying)
