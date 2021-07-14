@@ -169,6 +169,14 @@ ORDER BY c.local_id_no]]>
 	<variable name="Variable_6Net" class="java.math.BigDecimal" calculation="Sum">
 		<variableExpression><![CDATA[SUM($F{ttl_contrib},$F{ttl_intrst},PRODUCT(-1,$F{ttl_prncpl_bals}),PRODUCT(-1,$F{ttl_intrst_bals}))]]></variableExpression>
 	</variable>
+	<background>
+		<band height="555">
+			<image>
+				<reportElement x="0" y="0" width="802" height="555" uuid="d0043ba6-b309-4e78-92e2-10f98a794362"/>
+				<imageExpression><![CDATA[net.sf.jasperreports.renderers.BatikRenderer.getInstanceFromText("<svg width=\"842px\" height=\"555px\" xmlns=\"http://www.w3.org/2000/svg\"  style=\"background: rgba(0, 0, 0, 0);\"><g transform=\"translate(200, 525)\"><text x=\"60\" y=\"40\" transform=\"matrix(0.71,-0.71,0.71,0.71,0,0)\" style=\"font-size:60px;font-weight:bold;fill:#d8d8d8\">CONFIDENTIAL</text></g></svg>")]]></imageExpression>
+			</image>
+		</band>
+	</background>
 	<title>
 		<band height="120" splitType="Stretch">
 			<image hAlign="Center">
@@ -484,7 +492,7 @@ ORDER BY c.local_id_no]]>
 		</band>
 	</pageFooter>
 	<summary>
-		<band height="95" splitType="Stretch">
+		<band height="74" splitType="Stretch">
 			<property name="com.jaspersoft.studio.unit.height" value="pixel"/>
 			<staticText>
 				<reportElement positionType="Float" mode="Opaque" x="0" y="-1" width="802" height="3" isPrintInFirstWholeBand="true" backcolor="#E6E8E9" uuid="85eec030-50c0-411e-9791-cb14549926c6"/>

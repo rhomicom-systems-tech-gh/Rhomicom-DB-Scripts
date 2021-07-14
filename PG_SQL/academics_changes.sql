@@ -834,14 +834,19 @@ BEGIN
 	--org.get_payitm_id (p_ttl_bals_itm_st_nm);
 	IF COALESCE(v_ttl_bills_itm_st_id , - 1) > 0 THEN
 		SELECT
-			SUM(COALESCE(pay.get_ttl_paiditem_val_b4 (p_prsnid , item_id , TO_CHAR(NOW() , 'YYYY-MM-DD')) , 0))
-			, MAX(pay.get_ltst_paiditem_dte (p_prsnid , item_id)) INTO v_ttl_bills_itm_st_sum
-			, v_ltst_bill_dte
+			MAX(pay.get_ltst_paiditem_dte (p_prsnid , item_id)) INTO v_ltst_bill_dte
 		FROM
 			pay.get_AllItmStDet (v_ttl_bills_itm_st_id::integer);
 	END IF;
 	IF COALESCE(v_ltst_bill_dte , '') = '' THEN
 		v_ltst_bill_dte := TO_CHAR(NOW() , 'YYYY-MM-DD');
+	END IF;
+	v_ltst_bill_dte := TO_CHAR(TO_TIMESTAMP(v_ltst_bill_dte , 'YYYY-MM-DD') - INTERVAL '1 day' , 'YYYY-MM-DD');
+	IF COALESCE(v_ttl_bills_itm_st_id , - 1) > 0 THEN
+		SELECT
+			SUM(COALESCE(pay.get_ttl_paiditem_val_afta (p_prsnid , item_id , v_ltst_bill_dte) , 0)) INTO v_ttl_bills_itm_st_sum
+		FROM
+			pay.get_AllItmStDet (v_ttl_bills_itm_st_id::integer);
 	END IF;
 	IF COALESCE(v_ttl_pymnts_itm_st_id , - 1) > 0 THEN
 		SELECT

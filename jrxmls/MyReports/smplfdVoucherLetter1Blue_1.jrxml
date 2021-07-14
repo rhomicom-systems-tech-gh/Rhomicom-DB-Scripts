@@ -188,6 +188,14 @@ WHERE (a.smpl_vchr_hdr_id = 1);]]>
 	<variable name="Variable_2" class="java.util.Date">
 		<variableExpression><![CDATA[NOW( )]]></variableExpression>
 	</variable>
+	<background>
+		<band height="802">
+			<image>
+				<reportElement x="0" y="0" width="555" height="802" uuid="e6cbc8a0-1e2d-4fbb-bb7e-aade8fa6f2cf"/>
+				<imageExpression><![CDATA[net.sf.jasperreports.renderers.BatikRenderer.getInstanceFromText("<svg width=\"555px\" height=\"842px\" xmlns=\"http://www.w3.org/2000/svg\"  style=\"background: rgba(0, 0, 0, 0);\"><g transform=\"translate(25, 700)\"><text x=\"60\" y=\"40\" transform=\"matrix(0.71,-0.71,0.71,0.71,0,0)\" style=\"font-size:80px;font-weight:bold;fill:#d8d8d8\">CONFIDENTIAL</text></g></svg>")]]></imageExpression>
+			</image>
+		</band>
+	</background>
 	<title>
 		<band height="387" splitType="Stretch">
 			<property name="com.jaspersoft.studio.unit.height" value="px"/>

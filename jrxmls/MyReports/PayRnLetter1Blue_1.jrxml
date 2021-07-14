@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Created with Jaspersoft Studio version 6.13.0.final using JasperReports Library version 6.2.0  -->
+<!-- Created with Jaspersoft Studio version 6.14.0.final using JasperReports Library version 6.2.0  -->
 <jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Invoice" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" whenResourceMissingType="Empty" uuid="4eedbb89-b4f6-4469-9ab6-f642a1688cf7">
 	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
 	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Sample DB"/>
@@ -175,6 +175,14 @@ WHERE a.person_id = b.person_id
 	<variable name="Variable_Am_Pd" class="java.math.BigDecimal" calculation="Sum">
 		<variableExpression><![CDATA[$F{amount_paid}]]></variableExpression>
 	</variable>
+	<background>
+		<band height="802">
+			<image>
+				<reportElement x="0" y="0" width="555" height="802" uuid="01317690-47ec-47d6-a6cd-18bbe4711a02"/>
+				<imageExpression><![CDATA[net.sf.jasperreports.renderers.BatikRenderer.getInstanceFromText("<svg width=\"555px\" height=\"842px\" xmlns=\"http://www.w3.org/2000/svg\"  style=\"background: rgba(0, 0, 0, 0);\"><g transform=\"translate(25, 700)\"><text x=\"60\" y=\"40\" transform=\"matrix(0.71,-0.71,0.71,0.71,0,0)\" style=\"font-size:80px;font-weight:bold;fill:#d8d8d8\">CONFIDENTIAL</text></g></svg>")]]></imageExpression>
+			</image>
+		</band>
+	</background>
 	<title>
 		<band height="200" splitType="Stretch">
 			<property name="com.jaspersoft.studio.unit.height" value="px"/>
